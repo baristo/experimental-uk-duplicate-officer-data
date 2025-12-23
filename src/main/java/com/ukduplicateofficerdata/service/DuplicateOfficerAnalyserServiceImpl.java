@@ -1,11 +1,10 @@
 package com.ukduplicateofficerdata.service;
 
-import com.anthropic.Anthropic;
-import com.anthropic.models.MessageCreateParams;
-import com.anthropic.models.MessageResponse;
 import com.ukduplicateofficerdata.dto.OfficerRecordDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.List;
@@ -16,6 +15,14 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
 
     @Value("${anthropic.api.key}")
     private String anthropicApiKey;
+
+    private final WebClient webClient;
+
+    public DuplicateOfficerAnalyserServiceImpl(WebClient.Builder webClientBuilder) {
+        this.webClient = webClientBuilder
+                .baseUrl("https://api.anthropic.com")
+                .build();
+    }
 
     @Override
     public Map<String, String> analyse(List<OfficerRecordDTO> officerRecords) {
@@ -91,21 +98,34 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
 
     private String callClaudeHaiku(String prompt) {
         try {
-            Anthropic client = Anthropic.builder()
-                    .apiKey(anthropicApiKey)
-                    .build();
+            // Create request body for Anthropic API
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", "claude-3-haiku-20240307");
+            requestBody.put("max_tokens", 1024);
+            requestBody.put("messages", List.of(
+                    Map.of("role", "user", "content", prompt)
+            ));
 
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .model("claude-3-haiku-20240307")
-                    .maxTokens(1024)
-                    .addMessage(MessageCreateParams.Message.builder()
-                            .role(MessageCreateParams.Message.Role.USER)
-                            .content(prompt)
-                            .build())
-                    .build();
+            // Make API call
+            Map<String, Object> response = webClient.post()
+                    .uri("/v1/messages")
+                    .header("x-api-key", anthropicApiKey)
+                    .header("anthropic-version", "2023-06-01")
+                    .header("content-type", "application/json")
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
 
-            MessageResponse response = client.messages().create(params);
-            return response.content().get(0).text();
+            // Extract text from response
+            if (response != null && response.containsKey("content")) {
+                List<Map<String, Object>> content = (List<Map<String, Object>>) response.get("content");
+                if (!content.isEmpty() && content.get(0).containsKey("text")) {
+                    return (String) content.get(0).get("text");
+                }
+            }
+
+            return "Error: Unable to parse API response";
 
         } catch (Exception e) {
             return "Error calling Claude API: " + e.getMessage();
