@@ -111,9 +111,9 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
             Map<String, Object> requestBody = new HashMap<>();
 
             if (isLiteLLM) {
-                // LiteLLM/Bedrock uses OpenAI-compatible format
-                endpoint = "/chat/completions";
-                requestBody.put("model", "anthropic.claude-3-haiku-20240307-v1:0");
+                // LiteLLM/Bedrock uses the model name in the URL path
+                endpoint = "/bedrock/anthropic.claude-3-haiku-20240307-v1:0";
+                requestBody.put("model", "bedrock/anthropic.claude-3-haiku-20240307-v1:0");
                 requestBody.put("max_tokens", 1024);
                 requestBody.put("messages", List.of(
                         Map.of("role", "user", "content", prompt)
