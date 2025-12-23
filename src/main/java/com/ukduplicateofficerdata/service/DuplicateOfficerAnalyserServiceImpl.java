@@ -1,6 +1,8 @@
 package com.ukduplicateofficerdata.service;
 
 import com.ukduplicateofficerdata.dto.OfficerRecordDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -12,6 +14,8 @@ import java.util.Map;
 
 @Service
 public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnalyserService {
+
+    private static final Logger log = LoggerFactory.getLogger(DuplicateOfficerAnalyserServiceImpl.class);
 
     @Value("${anthropic.api.key}")
     private String anthropicApiKey;
@@ -111,9 +115,10 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
             Map<String, Object> requestBody = new HashMap<>();
 
             if (isLiteLLM) {
-                // LiteLLM/Bedrock uses the model name in the URL path
-                endpoint = "/bedrock/anthropic.claude-3-haiku-20240307-v1:0";
-                requestBody.put("model", "bedrock/anthropic.claude-3-haiku-20240307-v1:0");
+                // LiteLLM may expect model in URL path: /<model>/chat/completions
+                String modelName = "bedrock/anthropic.claude-3-haiku-20240307-v1:0";
+                endpoint = "/" + modelName + "/chat/completions";
+                requestBody.put("model", modelName);
                 requestBody.put("max_tokens", 1024);
                 requestBody.put("messages", List.of(
                         Map.of("role", "user", "content", prompt)
@@ -128,12 +133,15 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
                 ));
             }
 
+            log.debug("Calling Claude API at: {} {}", anthropicBaseUrl, endpoint);
+            log.debug("Request body model: {}", requestBody.get("model"));
+            log.debug("Request body max_tokens: {}", requestBody.get("max_tokens"));
+            log.debug("Request body messages size: {}", ((List<?>) requestBody.get("messages")).size());
+
             // Make API call
             Map<String, Object> response = webClient.post()
                     .uri(endpoint)
                     .header("Authorization", "Bearer " + anthropicApiKey)
-                    .header("x-api-key", anthropicApiKey)
-                    .header("anthropic-version", "2023-06-01")
                     .header("content-type", "application/json")
                     .bodyValue(requestBody)
                     .retrieve()
