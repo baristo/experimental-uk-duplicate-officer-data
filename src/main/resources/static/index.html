@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Duplicate Officer Data Analyser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .result-container {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .result-container.show {
+            display: block;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .result-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .result-content h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .result-content p {
+            color: #666;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .highlight-box {
+            background: #e7f3ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+
+        .highlight-box strong {
+            color: #667eea;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #667eea;
+            font-weight: 500;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .example-note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .example-note strong {
+            color: #856404;
+        }
+
+        .example-note p {
+            color: #856404;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>UK Duplicate Officer Data Analyser</h1>
+            <p>Analyse duplicate officer records using AI to determine the most accurate data</p>
+        </header>
+
+        <div class="content">
+            <div class="section">
+                <h2>Officer Records Input</h2>
+
+                <div class="example-note">
+                    <strong>How to use:</strong>
+                    <p>Enter officer records as JSON array. The AI will analyze which record is most likely correct based on completeness, dates, and data consistency.</p>
+                </div>
+
+                <div class="input-group">
+                    <label for="officerData">Enter Officer Records (JSON Array):</label>
+                    <textarea id="officerData" placeholder='[
+  {
+    "companyNumber": "12345678",
+    "personNumber": "ABCD1234",
+    "appointmentDate": "2020-01-15",
+    "resignationDate": null,
+    "postCode": "SW1A 1AA",
+    "dateOfBirth": "1980-05-20",
+    "title": "Mr",
+    "forenames": "John",
+    "surname": "Smith",
+    "honours": null,
+    "careOf": null,
+    "poBox": null,
+    "addressLine1": "10 Downing Street",
+    "addressLine2": null,
+    "postTown": "London",
+    "county": null,
+    "country": "United Kingdom",
+    "occupation": "Director",
+    "nationality": "British",
+    "usualResidentialCountry": "United Kingdom"
+  },
+  {
+    "companyNumber": "12345678",
+    "personNumber": "ABCD1234",
+    "appointmentDate": "2020-01-15",
+    "resignationDate": null,
+    "postCode": "SW1A 1AA",
+    "dateOfBirth": "1980-05-20",
+    "title": "Mr",
+    "forenames": "John Alexander",
+    "surname": "Smith",
+    "honours": null,
+    "careOf": "C/O ABC Ltd",
+    "poBox": null,
+    "addressLine1": "10 Downing Street",
+    "addressLine2": "Westminster",
+    "postTown": "London",
+    "county": "Greater London",
+    "country": "United Kingdom",
+    "occupation": "Company Director",
+    "nationality": "British",
+    "usualResidentialCountry": "United Kingdom"
+  }
+]'></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" id="analyseBtn" onclick="analyseOfficerData()">
+                        Analyse Records
+                    </button>
+                    <button class="btn-secondary" onclick="clearForm()">
+                        Clear
+                    </button>
+                </div>
+
+                <div id="loadingIndicator" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <span>Analysing records with AI...</span>
+                </div>
+            </div>
+
+            <div id="resultContainer" class="result-container">
+                <div class="result-header">
+                    <span id="statusBadge" class="status-badge"></span>
+                    <span id="statusMessage"></span>
+                </div>
+
+                <div class="result-content">
+                    <h3>Analysis Result</h3>
+                    <p id="analysisText"></p>
+                </div>
+
+                <div class="highlight-box">
+                    <strong>Most Likely Correct Record:</strong> <span id="correctRecord"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function analyseOfficerData() {
+            const textarea = document.getElementById('officerData');
+            const analyseBtn = document.getElementById('analyseBtn');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const resultContainer = document.getElementById('resultContainer');
+
+            // Validate input
+            const inputText = textarea.value.trim();
+            if (!inputText) {
+                alert('Please enter officer records data');
+                return;
+            }
+
+            // Parse JSON
+            let officerRecords;
+            try {
+                officerRecords = JSON.parse(inputText);
+                if (!Array.isArray(officerRecords)) {
+                    throw new Error('Input must be a JSON array');
+                }
+                if (officerRecords.length === 0) {
+                    throw new Error('Array must contain at least one officer record');
+                }
+            } catch (error) {
+                alert('Invalid JSON format: ' + error.message);
+                return;
+            }
+
+            // Show loading state
+            analyseBtn.disabled = true;
+            loadingIndicator.style.display = 'flex';
+            resultContainer.classList.remove('show');
+
+            try {
+                // Call the API
+                const response = await fetch('/api/analyse', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(officerRecords)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                // Display results
+                displayResults(result);
+
+            } catch (error) {
+                // Display error
+                displayError(error.message);
+            } finally {
+                // Hide loading state
+                analyseBtn.disabled = false;
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        function displayResults(result) {
+            const resultContainer = document.getElementById('resultContainer');
+            const statusBadge = document.getElementById('statusBadge');
+            const statusMessage = document.getElementById('statusMessage');
+            const analysisText = document.getElementById('analysisText');
+            const correctRecord = document.getElementById('correctRecord');
+
+            // Set status
+            if (result.status === 'success') {
+                statusBadge.className = 'status-badge status-success';
+                statusBadge.textContent = 'Success';
+            } else {
+                statusBadge.className = 'status-badge status-error';
+                statusBadge.textContent = 'Error';
+            }
+
+            statusMessage.textContent = result.message || '';
+
+            // Set analysis text
+            analysisText.textContent = result.analysis || 'No analysis available';
+
+            // Set correct record
+            correctRecord.textContent = result.mostLikelyCorrectRecord
+                ? `Record ${result.mostLikelyCorrectRecord}`
+                : 'Not determined';
+
+            // Show result container
+            resultContainer.classList.add('show');
+            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function displayError(errorMessage) {
+            const resultContainer = document.getElementById('resultContainer');
+            const statusBadge = document.getElementById('statusBadge');
+            const statusMessage = document.getElementById('statusMessage');
+            const analysisText = document.getElementById('analysisText');
+            const correctRecord = document.getElementById('correctRecord');
+
+            statusBadge.className = 'status-badge status-error';
+            statusBadge.textContent = 'Error';
+            statusMessage.textContent = 'Failed to analyse records';
+            analysisText.textContent = errorMessage;
+            correctRecord.textContent = 'N/A';
+
+            resultContainer.classList.add('show');
+            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function clearForm() {
+            document.getElementById('officerData').value = '';
+            document.getElementById('resultContainer').classList.remove('show');
+        }
+    </script>
+</body>
+</html>
