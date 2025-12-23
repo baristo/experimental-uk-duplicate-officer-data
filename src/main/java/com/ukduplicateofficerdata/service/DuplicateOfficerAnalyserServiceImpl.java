@@ -16,11 +16,15 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
     @Value("${anthropic.api.key}")
     private String anthropicApiKey;
 
+    @Value("${anthropic.api.base-url}")
+    private String anthropicBaseUrl;
+
     private final WebClient webClient;
 
-    public DuplicateOfficerAnalyserServiceImpl(WebClient.Builder webClientBuilder) {
+    public DuplicateOfficerAnalyserServiceImpl(WebClient.Builder webClientBuilder,
+                                                @Value("${anthropic.api.base-url}") String baseUrl) {
         this.webClient = webClientBuilder
-                .baseUrl("https://api.anthropic.com")
+                .baseUrl(baseUrl)
                 .build();
     }
 
@@ -98,30 +102,69 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
 
     private String callClaudeHaiku(String prompt) {
         try {
-            // Create request body for Anthropic API
+            // Determine if using LiteLLM (Bedrock) or direct Anthropic API
+            boolean isLiteLLM = anthropicBaseUrl.contains("bedrock") ||
+                               anthropicBaseUrl.contains("litellm") ||
+                               anthropicBaseUrl.contains("ai-assistant");
+
+            String endpoint;
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", "claude-3-haiku-20240307");
-            requestBody.put("max_tokens", 1024);
-            requestBody.put("messages", List.of(
-                    Map.of("role", "user", "content", prompt)
-            ));
+
+            if (isLiteLLM) {
+                // LiteLLM/Bedrock uses OpenAI-compatible format
+                endpoint = "/chat/completions";
+                requestBody.put("model", "anthropic.claude-3-haiku-20240307-v1:0");
+                requestBody.put("max_tokens", 1024);
+                requestBody.put("messages", List.of(
+                        Map.of("role", "user", "content", prompt)
+                ));
+            } else {
+                // Direct Anthropic API format
+                endpoint = "/v1/messages";
+                requestBody.put("model", "claude-3-haiku-20240307");
+                requestBody.put("max_tokens", 1024);
+                requestBody.put("messages", List.of(
+                        Map.of("role", "user", "content", prompt)
+                ));
+            }
 
             // Make API call
             Map<String, Object> response = webClient.post()
-                    .uri("/v1/messages")
+                    .uri(endpoint)
+                    .header("Authorization", "Bearer " + anthropicApiKey)
                     .header("x-api-key", anthropicApiKey)
                     .header("anthropic-version", "2023-06-01")
                     .header("content-type", "application/json")
                     .bodyValue(requestBody)
                     .retrieve()
+                    .onStatus(status -> status.isError(), clientResponse -> {
+                        return clientResponse.bodyToMono(String.class)
+                                .map(errorBody -> new RuntimeException(
+                                        "HTTP " + clientResponse.statusCode().value() +
+                                        " from POST " + anthropicBaseUrl + endpoint + ". Response: " + errorBody
+                                ));
+                    })
                     .bodyToMono(Map.class)
                     .block();
 
-            // Extract text from response
-            if (response != null && response.containsKey("content")) {
-                List<Map<String, Object>> content = (List<Map<String, Object>>) response.get("content");
-                if (!content.isEmpty() && content.get(0).containsKey("text")) {
-                    return (String) content.get(0).get("text");
+            // Extract text from response - handle both formats
+            if (response != null) {
+                // Try OpenAI/LiteLLM format first
+                if (response.containsKey("choices")) {
+                    List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
+                    if (!choices.isEmpty()) {
+                        Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+                        if (message != null && message.containsKey("content")) {
+                            return (String) message.get("content");
+                        }
+                    }
+                }
+                // Try Anthropic format
+                if (response.containsKey("content")) {
+                    List<Map<String, Object>> content = (List<Map<String, Object>>) response.get("content");
+                    if (!content.isEmpty() && content.get(0).containsKey("text")) {
+                        return (String) content.get(0).get("text");
+                    }
                 }
             }
 
