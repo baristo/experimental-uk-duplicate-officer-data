@@ -23,6 +23,9 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
     @Value("${anthropic.api.base-url}")
     private String anthropicBaseUrl;
 
+    @Value("${anthropic.haiku.model}")
+    private String anthropicHaikuModel;
+
     private final WebClient webClient;
 
     public DuplicateOfficerAnalyserServiceImpl(WebClient.Builder webClientBuilder,
@@ -115,10 +118,9 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
             Map<String, Object> requestBody = new HashMap<>();
 
             if (isLiteLLM) {
-                // LiteLLM may expect model in URL path: /<model>/chat/completions
-                String modelName = "bedrock/anthropic.claude-3-haiku-20240307-v1:0";
-                endpoint = "/" + modelName + "/chat/completions";
-                requestBody.put("model", modelName);
+                // Custom proxy - POST directly to base URL
+                endpoint = "";
+                requestBody.put("model", anthropicHaikuModel);
                 requestBody.put("max_tokens", 1024);
                 requestBody.put("messages", List.of(
                         Map.of("role", "user", "content", prompt)
@@ -126,7 +128,7 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
             } else {
                 // Direct Anthropic API format
                 endpoint = "/v1/messages";
-                requestBody.put("model", "claude-3-haiku-20240307");
+                requestBody.put("model", anthropicHaikuModel);
                 requestBody.put("max_tokens", 1024);
                 requestBody.put("messages", List.of(
                         Map.of("role", "user", "content", prompt)
