@@ -33,6 +33,11 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
                                                 @Value("${anthropic.api.base-url}") String baseUrl) {
         this.webClient = webClientBuilder
                 .baseUrl(baseUrl)
+                .filter((request, next) -> {
+                    log.debug("Request URI: {}", request.url());
+                    log.debug("Request Method: {}", request.method());
+                    return next.exchange(request);
+                })
                 .build();
     }
 
@@ -110,33 +115,30 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
 
     private String callClaudeHaiku(String prompt) {
         try {
-            // Determine if using LiteLLM (Bedrock) or direct Anthropic API
-            boolean isLiteLLM = anthropicBaseUrl.contains("bedrock") ||
-                               anthropicBaseUrl.contains("litellm") ||
-                               anthropicBaseUrl.contains("ai-assistant");
+            // Check Claude Code environment variables
+            String useBedrock = System.getenv("CLAUDE_CODE_USE_BEDROCK");
+            String skipBedrockAuth = System.getenv("CLAUDE_CODE_SKIP_BEDROCK_AUTH");
+
+            boolean isUsingBedrock = "1".equals(useBedrock) || "true".equalsIgnoreCase(useBedrock);
+            boolean isSkippingAuth = "1".equals(skipBedrockAuth) || "true".equalsIgnoreCase(skipBedrockAuth);
 
             String endpoint;
             Map<String, Object> requestBody = new HashMap<>();
 
-            if (isLiteLLM) {
-                // Custom proxy - model identifier goes in the URL path
-                endpoint = "/" + anthropicHaikuModel;
-                requestBody.put("model", anthropicHaikuModel);
-                requestBody.put("max_tokens", 1024);
-                requestBody.put("messages", List.of(
-                        Map.of("role", "user", "content", prompt)
-                ));
-            } else {
-                // Direct Anthropic API format
-                endpoint = "/v1/messages";
-                requestBody.put("model", anthropicHaikuModel);
-                requestBody.put("max_tokens", 1024);
-                requestBody.put("messages", List.of(
-                        Map.of("role", "user", "content", prompt)
-                ));
-            }
+            log.debug("CLAUDE_CODE_USE_BEDROCK: {}", useBedrock);
+            log.debug("CLAUDE_CODE_SKIP_BEDROCK_AUTH: {}", skipBedrockAuth);
+            log.debug("Using Bedrock with proxy auth: {}", isUsingBedrock && isSkippingAuth);
 
-            log.debug("Calling Claude API at: {} {}", anthropicBaseUrl, endpoint);
+            // Proxy expects model in URL path, NOT in request body
+            endpoint = "/" + anthropicHaikuModel;
+            // Do NOT include model in body - proxy extracts from URL and gets confused
+            requestBody.put("max_tokens", 1024);
+            requestBody.put("messages", List.of(
+                    Map.of("role", "user", "content", prompt)
+            ));
+
+            log.debug("Calling Claude API at: {}{}", anthropicBaseUrl, endpoint);
+            log.debug("Request body: {}", requestBody);
             log.debug("Request body model: {}", requestBody.get("model"));
             log.debug("Request body max_tokens: {}", requestBody.get("max_tokens"));
             log.debug("Request body messages size: {}", ((List<?>) requestBody.get("messages")).size());
@@ -146,6 +148,8 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
                     .uri(endpoint)
                     .header("Authorization", "Bearer " + anthropicApiKey)
                     .header("content-type", "application/json")
+                    .header("anthropic-version", "2023-06-01")
+                    .header("x-model-id", anthropicHaikuModel)
                     .bodyValue(requestBody)
                     .exchangeToMono(clientResponse -> {
                         log.debug("HTTP Status: {}", clientResponse.statusCode());
