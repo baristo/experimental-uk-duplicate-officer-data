@@ -1,12 +1,13 @@
 package com.ukduplicateofficerdata.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ukduplicateofficerdata.dto.OfficerRecordDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.List;
@@ -118,8 +119,8 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
             Map<String, Object> requestBody = new HashMap<>();
 
             if (isLiteLLM) {
-                // Custom proxy - POST directly to base URL
-                endpoint = "";
+                // Custom proxy - model identifier goes in the URL path
+                endpoint = "/" + anthropicHaikuModel;
                 requestBody.put("model", anthropicHaikuModel);
                 requestBody.put("max_tokens", 1024);
                 requestBody.put("messages", List.of(
@@ -140,25 +141,44 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
             log.debug("Request body max_tokens: {}", requestBody.get("max_tokens"));
             log.debug("Request body messages size: {}", ((List<?>) requestBody.get("messages")).size());
 
-            // Make API call
-            Map<String, Object> response = webClient.post()
+            // Make API call - first get raw response as String with full response details
+            String rawResponse = webClient.post()
                     .uri(endpoint)
                     .header("Authorization", "Bearer " + anthropicApiKey)
                     .header("content-type", "application/json")
                     .bodyValue(requestBody)
-                    .retrieve()
-                    .onStatus(status -> status.isError(), clientResponse -> {
+                    .exchangeToMono(clientResponse -> {
+                        log.debug("HTTP Status: {}", clientResponse.statusCode());
+                        log.debug("Response Headers: {}", clientResponse.headers().asHttpHeaders());
                         return clientResponse.bodyToMono(String.class)
-                                .map(errorBody -> new RuntimeException(
-                                        "HTTP " + clientResponse.statusCode().value() +
-                                        " from POST " + anthropicBaseUrl + endpoint + ". Response: " + errorBody
-                                ));
+                                .doOnNext(body -> log.debug("Response Body: {}", body))
+                                .map(body -> body);
                     })
-                    .bodyToMono(Map.class)
                     .block();
+
+            log.debug("Raw API response after block: {}", rawResponse);
+
+            if (rawResponse == null || rawResponse.isEmpty()) {
+                log.error("Received null or empty response from API");
+                return "Error: Received empty response from API";
+            }
+
+            // Parse the response
+            Map<String, Object> response;
+            try {
+                // For now, let's use a simple JSON parsing approach
+                // You might need to add Jackson dependency or use another approach
+                response = parseJsonResponse(rawResponse);
+            } catch (Exception e) {
+                log.error("Failed to parse JSON response: {}", e.getMessage());
+                return "Error: Failed to parse API response - " + e.getMessage();
+            }
 
             // Extract text from response - handle both formats
             if (response != null) {
+                log.debug("Response keys: {}", response.keySet());
+                log.debug("Full response: {}", response);
+
                 // Try OpenAI/LiteLLM format first
                 if (response.containsKey("choices")) {
                     List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
@@ -178,6 +198,7 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
                 }
             }
 
+            log.error("Unable to parse API response. Response was: {}", response);
             return "Error: Unable to parse API response";
 
         } catch (Exception e) {
@@ -196,5 +217,10 @@ public class DuplicateOfficerAnalyserServiceImpl implements DuplicateOfficerAnal
             }
         }
         return "0";
+    }
+
+    private Map<String, Object> parseJsonResponse(String json) throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
     }
 }
